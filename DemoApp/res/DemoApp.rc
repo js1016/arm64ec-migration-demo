@@ -1,0 +1,123 @@
+﻿//=============================================================================
+// DemoApp.rc —— 资源脚本
+//
+// 本文件以 UTF-8 (带 BOM) 保存，以便 rc.exe 正确解析中文。
+// 迁移到 ARM64EC 时，资源脚本**无需任何修改**：资源数据与 CPU 架构无关。
+//=============================================================================
+
+#include <windows.h>
+#include "Resource.h"
+
+LANGUAGE LANG_CHINESE, SUBLANG_CHINESE_SIMPLIFIED
+
+/////////////////////////////////////////////////////////////////////////////
+// 图标
+/////////////////////////////////////////////////////////////////////////////
+
+IDI_DEMOAPP             ICON                    "DemoApp.ico"
+
+/////////////////////////////////////////////////////////////////////////////
+// 主菜单
+/////////////////////////////////////////////////////////////////////////////
+
+IDR_MAINMENU MENU
+BEGIN
+    POPUP "文件(&F)"
+    BEGIN
+        MENUITEM "退出(&X)",                     IDM_FILE_EXIT
+    END
+    POPUP "操作(&A)"
+    BEGIN
+        MENUITEM "检测运行环境(&E)\tCtrl+1",     IDM_ACTION_ENVIRONMENT
+        MENUITEM "查看模块架构(&M)\tCtrl+2",     IDM_ACTION_MODULES
+        MENUITEM "调用第三方 SDK(&S)\tCtrl+3",   IDM_ACTION_SDKCALL
+        MENUITEM SEPARATOR
+        MENUITEM "结果一致性对比(&C)\tCtrl+4",   IDM_ACTION_COMPARE
+        MENUITEM "性能基准测试(&B)\tCtrl+5",     IDM_ACTION_BENCHMARK
+        MENUITEM SEPARATOR
+        MENUITEM "清空日志(&L)\tCtrl+L",         IDM_ACTION_CLEARLOG
+    END
+    POPUP "帮助(&H)"
+    BEGIN
+        MENUITEM "关于(&A)...",                  IDM_HELP_ABOUT
+    END
+END
+
+/////////////////////////////////////////////////////////////////////////////
+// 快捷键
+/////////////////////////////////////////////////////////////////////////////
+
+IDR_MAINMENU ACCELERATORS
+BEGIN
+    "1",            IDM_ACTION_ENVIRONMENT, VIRTKEY, CONTROL, NOINVERT
+    "2",            IDM_ACTION_MODULES,     VIRTKEY, CONTROL, NOINVERT
+    "3",            IDM_ACTION_SDKCALL,     VIRTKEY, CONTROL, NOINVERT
+    "4",            IDM_ACTION_COMPARE,     VIRTKEY, CONTROL, NOINVERT
+    "5",            IDM_ACTION_BENCHMARK,   VIRTKEY, CONTROL, NOINVERT
+    "L",            IDM_ACTION_CLEARLOG,    VIRTKEY, CONTROL, NOINVERT
+END
+
+/////////////////////////////////////////////////////////////////////////////
+// “关于”对话框
+/////////////////////////////////////////////////////////////////////////////
+
+IDD_ABOUTBOX DIALOGEX 0, 0, 300, 165
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "关于 ARM64EC 迁移示例"
+FONT 9, "Segoe UI", 400, 0, 0x86
+BEGIN
+    ICON            IDI_DEMOAPP,IDC_STATIC,14,14,21,20
+    LTEXT           "ARM64EC 迁移示例应用",IDC_STATIC,46,14,240,12
+    LTEXT           "版本 1.0.0 —— 第一阶段：x64 (AMD64) 原生构建",IDC_STATIC,46,30,240,10
+    LTEXT           "演示传统 x64 Win32 程序如何继续使用仅有 x64 版本的第三方 DLL。",
+                    IDC_STATIC,14,52,272,20
+    LTEXT           "",IDC_ABOUT_TEXT,14,76,272,60
+    DEFPUSHBUTTON   "确定",IDOK,234,142,52,16,WS_GROUP
+END
+
+/////////////////////////////////////////////////////////////////////////////
+// 字符串表
+/////////////////////////////////////////////////////////////////////////////
+
+STRINGTABLE
+BEGIN
+    IDS_APP_TITLE           "ARM64EC 迁移示例"
+    IDS_WINDOW_CLASS        "Arm64EcDemo.MainWindow"
+END
+
+/////////////////////////////////////////////////////////////////////////////
+// 版本信息
+/////////////////////////////////////////////////////////////////////////////
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION 1,0,0,0
+ PRODUCTVERSION 1,0,0,0
+ FILEFLAGSMASK 0x3fL
+#ifdef _DEBUG
+ FILEFLAGS 0x1L
+#else
+ FILEFLAGS 0x0L
+#endif
+ FILEOS 0x40004L
+ FILETYPE 0x1L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "080404b0"
+        BEGIN
+            VALUE "CompanyName",      "ARM64EC Migration Demo"
+            VALUE "FileDescription",  "ARM64EC 迁移示例应用"
+            VALUE "FileVersion",      "1.0.0.0"
+            VALUE "InternalName",     "DemoApp.exe"
+            VALUE "LegalCopyright",   "示例代码，可自由使用"
+            VALUE "OriginalFilename", "DemoApp.exe"
+            VALUE "ProductName",      "ARM64EC 迁移示例"
+            VALUE "ProductVersion",   "1.0.0.0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x804, 1200
+    END
+END

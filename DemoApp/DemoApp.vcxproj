@@ -1,0 +1,166 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ============================================================================
+  DemoApp.vcxproj —— 宿主应用（传统 Win32 GUI）的构建工程。
+
+  【迁移阶段一：x64】
+  当前工程**只定义 x64 平台**，这是一个典型的、为 64 位 Windows 开发的应用。
+  后续迁移到 ARM64EC 时，本文件会是改动最集中的地方：
+    * 新增 ARM64EC 的 ProjectConfiguration；
+    * 第三方库目录中硬编码的 "x64" 需要保持不变（继续引用 x64 导入库）；
+    * MASM 汇编项需要按平台排除；
+    * 可能需要链接 softintrin.lib 以支持 x64 内在函数模拟。
+  ============================================================================
+-->
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <ProjectGuid>{A1B2C3D4-0002-4E5F-9A0B-000000000002}</ProjectGuid>
+    <RootNamespace>DemoApp</RootNamespace>
+    <ProjectName>DemoApp</ProjectName>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <PlatformToolset>v145</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Debug'" Label="Configuration">
+    <UseDebugLibraries>true</UseDebugLibraries>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Release'" Label="Configuration">
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+  </PropertyGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+
+  <!-- 启用 MASM 构建自定义，使 .asm 文件能被 ml64.exe 汇编 -->
+  <ImportGroup Label="ExtensionSettings">
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\masm.props" />
+  </ImportGroup>
+
+  <PropertyGroup>
+    <OutDir>$(SolutionDir)build\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)build\obj\$(ProjectName)\$(Platform)\$(Configuration)\</IntDir>
+    <TargetName>DemoApp</TargetName>
+    <GenerateManifest>true</GenerateManifest>
+  </PropertyGroup>
+
+  <!-- 第三方 SDK 的位置（厂商只提供 x64 版本，因此路径里硬编码了 x64） -->
+  <PropertyGroup>
+    <FastImageRoot>$(SolutionDir)thirdparty\FastImage\</FastImageRoot>
+    <FastImageIncludeDir>$(FastImageRoot)include</FastImageIncludeDir>
+    <FastImageLibDir>$(FastImageRoot)lib\x64\$(Configuration)</FastImageLibDir>
+    <FastImageBinDir>$(FastImageRoot)bin\x64\$(Configuration)</FastImageBinDir>
+  </PropertyGroup>
+
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <!-- /utf-8 保证源码中的中文注释与宽字符串按 UTF-8 正确解析 -->
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
+      <WarningLevel>Level4</WarningLevel>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <SDLCheck>true</SDLCheck>
+      <ConformanceMode>true</ConformanceMode>
+      <AdditionalIncludeDirectories>$(FastImageIncludeDir);$(MSBuildProjectDirectory)\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32_LEAN_AND_MEAN;_WINDOWS;UNICODE;_UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(MSBuildProjectDirectory)\res;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>$(FastImageLibDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>FastImage.lib;comctl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+    <Manifest>
+      <AdditionalManifestFiles>$(MSBuildProjectDirectory)\res\DemoApp.manifest</AdditionalManifestFiles>
+    </Manifest>
+    <PostBuildEvent>
+      <!-- 把第三方 x64 DLL 复制到输出目录，供运行时加载 -->
+      <Command>xcopy /Y /D /Q "$(FastImageBinDir)\FastImage.dll" "$(OutDir)" &gt; nul</Command>
+      <Message>正在复制第三方 x64 组件 FastImage.dll ...</Message>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">
+    <ClCompile>
+      <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <Optimization>Disabled</Optimization>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+    </ClCompile>
+  </ItemDefinitionGroup>
+
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Release'">
+    <ClCompile>
+      <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+    </ClCompile>
+    <Link>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+    </Link>
+  </ItemDefinitionGroup>
+
+  <ItemGroup>
+    <ClCompile Include="src\Main.cpp" />
+    <ClCompile Include="src\MainWindow.cpp" />
+    <ClCompile Include="src\NativeCompute.cpp" />
+    <ClCompile Include="src\SysInfo.cpp" />
+    <ClCompile Include="src\TextUtil.cpp" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ClInclude Include="src\MainWindow.h" />
+    <ClInclude Include="src\NativeCompute.h" />
+    <ClInclude Include="src\SysInfo.h" />
+    <ClInclude Include="src\TextUtil.h" />
+    <ClInclude Include="res\Resource.h" />
+  </ItemGroup>
+
+  <!--
+    x64 手写汇编。
+    迁移提示：ARM64EC 平台不支持 ml64.exe，切换平台时必须把这一项排除掉，
+    并提供 C++ 或 ARM64 汇编的替代实现。
+  -->
+  <ItemGroup>
+    <MASM Include="src\FastMath.asm" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ResourceCompile Include="res\DemoApp.rc" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="res\DemoApp.manifest" />
+    <Image Include="res\DemoApp.ico" />
+  </ItemGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+
+  <ImportGroup Label="ExtensionTargets">
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\masm.targets" />
+  </ImportGroup>
+</Project>

@@ -1,0 +1,79 @@
+# =============================================================================
+# 构建产物一律不入库
+# =============================================================================
+
+# 本仓库统一的输出根目录（build.ps1 与 vcxproj 中的 OutDir / IntDir）
+build/
+
+# MSBuild / Visual Studio 默认的输出目录名（任意层级）
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+ARM64/
+ARM64EC/
+ipch/
+
+# 第三方 SDK 的构建产物。
+# 本示例中 FastImage 是从源码现场构建的，因此它的 bin/ 与 lib/ 属于产物；
+# 真实项目里厂商交付的二进制通常反而需要入库。
+thirdparty/FastImage/bin/
+thirdparty/FastImage/lib/
+
+# ---- 编译 / 链接中间文件 ----
+*.obj
+*.o
+*.pch
+*.ipch
+*.res
+*.tlb
+*.tli
+*.tlh
+*.idb
+*.iobj
+*.ipdb
+*.pdb
+*.ilk
+*.exp
+*.map
+*.sbr
+*.bsc
+
+# ---- 最终二进制 ----
+*.exe
+*.dll
+*.lib
+*.a
+*.so
+
+# ---- MSBuild 日志与增量构建状态 ----
+*.tlog
+*.log
+*.binlog
+*.recipe
+*.lastbuildstate
+*.unsuccessfulbuild
+*.cache
+
+# =============================================================================
+# Visual Studio / 编辑器 个人设置（因人而异，不入库）
+# =============================================================================
+.vs/
+.vscode/
+*.user
+*.suo
+*.sdf
+*.opensdf
+*.aps
+*.vcxproj.user
+*.VC.db
+*.VC.opendb
+enc_temp_folder/
+
+# =============================================================================
+# 操作系统杂项
+# =============================================================================
+Thumbs.db
+desktop.ini
+.DS_Store
