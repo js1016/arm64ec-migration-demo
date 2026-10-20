@@ -510,6 +510,7 @@ void MainWindow::ActionShowEnvironment()
 
     LogFormat(L"  CPU 型号       : %s", NativeCompute::GetCpuBrandString().c_str());
     LogFormat(L"  指令集特性     : %s", NativeCompute::GetCpuFeatureSummary().c_str());
+    LogFormat(L"  本程序 SIMD 路径: %s", NativeCompute::GetActiveSimdPath().c_str());
 
     LogLine(L"");
     SetStatus(L"环境检测完成");
@@ -552,6 +553,66 @@ void MainWindow::ActionShowModules()
         if (module != nullptr)
         {
             LogLine(SysInfo::DescribeModule(module));
+        }
+    }
+
+    //-------------------------------------------------------------------------
+    // 函数级别的代码类型（ARM64EC 专有）
+    //
+    // 在 ARM64EC 进程里，“模块是什么架构”已经不足以描述真实情况：
+    // 同一个进程内 ARM64EC 原生代码与 x64 模拟代码是逐函数混合的。
+    // ntdll!RtlIsEcCode 可以精确回答任意代码地址属于哪一类。
+    //-------------------------------------------------------------------------
+    LogLine(L"");
+    LogLine(L"  —— 函数级代码类型（由 ntdll!RtlIsEcCode 判定）——");
+
+    if (SysInfo::ClassifyCodeAddress(reinterpret_cast<const void*>(&MainWindow::OnSdkProgress))
+        == SysInfo::CodeKind::Unsupported)
+    {
+        LogLine(L"  当前系统的 ntdll 未导出 RtlIsEcCode，无法做函数级判定。");
+    }
+    else
+    {
+        if (!SysInfo::IsNativeArm64())
+        {
+            LogLine(L"  提示：当前是 x64 机器，进程内全部都是 x64 原生代码，");
+            LogLine(L"        所以下面每一项都会判定为“非 ARM64EC”。");
+            LogLine(L"        把本程序构建为 ARM64EC 并放到 ARM64 设备上运行后，");
+            LogLine(L"        前三项会变成 ARM64EC 代码，而第三方 DLL 的函数仍然是 x64 ——");
+            LogLine(L"        那时才能看到两类代码在同一进程内共存的真正对比。");
+            LogLine(L"");
+        }
+
+        LogLine(SysInfo::DescribeCodeAddress(
+            L"本程序 · 进度回调",
+            reinterpret_cast<const void*>(&MainWindow::OnSdkProgress)));
+        LogLine(SysInfo::DescribeCodeAddress(
+            L"本程序 · SIMD 实现",
+            reinterpret_cast<const void*>(&NativeCompute::AdjustBrightnessLocal)));
+        LogLine(SysInfo::DescribeCodeAddress(
+            L"本程序 · FastMath_SumU32",
+            reinterpret_cast<const void*>(&FastMath_SumU32)));
+        LogLine(SysInfo::DescribeCodeAddress(
+            L"第三方 · FI_AdjustBrightness",
+            reinterpret_cast<const void*>(&FI_AdjustBrightness)));
+
+        HMODULE kernel32 = GetModuleHandleW(L"kernel32.dll");
+        if (kernel32 != nullptr)
+        {
+            LogLine(SysInfo::DescribeCodeAddress(
+                L"系统   · kernel32!Sleep",
+                reinterpret_cast<const void*>(GetProcAddress(kernel32, "Sleep"))));
+
+            if (SysInfo::IsNativeArm64())
+            {
+                LogLine(L"");
+                LogLine(L"  注：最后一行判定为「非 ARM64EC」属于正常现象，");
+                LogLine(L"      并不意味着系统 DLL 被模拟执行。kernel32 本身是 ARM64X 混合映像");
+                LogLine(L"      （见上面的模块列表），但 GetProcAddress 拿到的导出入口是面向");
+                LogLine(L"      x64 调用方的兼容入口，再由它转到 ARM64EC 实现。");
+                LogLine(L"      结论：判断「模块是否原生」要看模块的 CHPE 元数据，");
+                LogLine(L"            不能用某一个函数地址去推断。");
+            }
         }
     }
 
@@ -653,7 +714,14 @@ void MainWindow::ActionCallThirdPartySdk()
     LogLine(L"  FI_Destroy                -> 已释放");
 
     LogLine(L"");
+#if defined(_M_ARM64EC)
+    LogLine(L"  结论：ARM64EC 宿主程序成功调用了**未经重新编译**的 x64 DLL，");
+    LogLine(L"        并收到了它跨 ABI 边界发起的回调。调用两侧的源码都没有任何改动，");
+    LogLine(L"        寄存器与栈帧的转换由系统自动生成的 exit/entry thunk 完成。");
+#else
     LogLine(L"  结论：宿主程序成功调用了第三方 x64 DLL，并收到了它发起的回调。");
+    LogLine(L"        迁移到 ARM64EC 后，这段调用代码无需任何修改即可继续工作。");
+#endif
     LogLine(L"");
 
     SetStatus(L"第三方 SDK 调用完成");
@@ -741,8 +809,10 @@ void MainWindow::ActionRunBenchmark()
 
     std::vector<uint8_t> buffer(kTestPixelCount);
 
-    LARGE_INTEGER frequency = {};
-    QueryPerformanceFrequency(&frequency);
+    // 迁移说明：原先这里还会读 __rdtsc 并把差值当作 CPU 周期数上报。
+    // __rdtsc 在 ARM64EC 下的频率与语义都和 x86 TSC 不同，会得出错误结论，
+    // 因此统一改用架构中立的 QueryPerformanceCounter。
+    const uint64_t frequency = NativeCompute::GetPerformanceFrequency();
 
     auto measure = [&](const wchar_t* label, auto&& work)
     {
@@ -750,32 +820,25 @@ void MainWindow::ActionRunBenchmark()
         NativeCompute::FillTestPattern(buffer.data(), buffer.size(), kTestSeed);
         work();
 
-        LARGE_INTEGER start = {}, end = {};
-        const uint64_t tscStart = NativeCompute::ReadTimestampCounter();
-        QueryPerformanceCounter(&start);
+        const uint64_t start = NativeCompute::ReadPerformanceCounter();
 
         for (int i = 0; i < kIterations; ++i)
         {
             work();
         }
 
-        QueryPerformanceCounter(&end);
-        const uint64_t tscEnd = NativeCompute::ReadTimestampCounter();
+        const uint64_t end = NativeCompute::ReadPerformanceCounter();
 
         const double elapsedMs =
-            static_cast<double>(end.QuadPart - start.QuadPart) * 1000.0 /
-            static_cast<double>(frequency.QuadPart);
+            static_cast<double>(end - start) * 1000.0 / static_cast<double>(frequency);
 
         const double throughput =
             (static_cast<double>(kTestPixelCount) * kIterations) /
             (elapsedMs / 1000.0) / (1024.0 * 1024.0);
 
         LogFormat(L"  %s 总耗时 %8.2f ms   单轮 %6.2f ms   吞吐 %8.1f MiB/s",
-                  TextUtil::PadRight(label, 24).c_str(),
+                  TextUtil::PadRight(label, 28).c_str(),
                   elapsedMs, elapsedMs / kIterations, throughput);
-        LogFormat(L"  %s TSC 增量 = %llu",
-                  TextUtil::PadRight(L"", 24).c_str(),
-                  static_cast<unsigned long long>(tscEnd - tscStart));
     };
 
     // --- 第三方 x64 DLL 路径 ---
@@ -790,22 +853,42 @@ void MainWindow::ActionRunBenchmark()
     }
 
     // --- 本程序自己的实现 ---
-    measure(L"本程序 SIMD 实现", [&]()
+    const std::wstring localLabel = L"本程序 " + NativeCompute::GetActiveSimdPath();
+    measure(localLabel.c_str(), [&]()
     {
         NativeCompute::AdjustBrightnessLocal(buffer.data(), buffer.size(), kTestGain);
     });
 
     LogLine(L"");
+
+#ifdef _DEBUG
+    LogLine(L"  注意：当前是 Debug 构建，上面的数字**没有参考价值**。");
+    LogLine(L"        /Od 下 SIMD 内在函数会退化成极差的代码（寄存器大量溢出到栈），");
+    LogLine(L"        性能对比请一律使用 Release 构建。");
+    LogLine(L"");
+#endif
+
     if (SysInfo::IsNativeArm64())
     {
-        LogLine(L"  说明：当前运行在 ARM64 机器上，第三方 SDK 走的是 x64 模拟路径，");
-        LogLine(L"        两者的性能差异正是 ARM64EC 迁移需要权衡的地方。");
+        LogLine(L"  怎么解读这组数字：");
+        LogLine(L"    · 第三方 SDK 是未经重新编译的 x64 代码，走模拟执行；");
+        LogLine(L"      本程序的 SIMD 已经是 ARM64 原生指令。");
+        LogLine(L"    · 但「模拟」并不等于「慢」：Windows on ARM 的 x64 模拟器会把热点");
+        LogLine(L"      代码 JIT 成 ARM64 并缓存，稳态吞吐可以很接近原生。");
+        LogLine(L"    · 本测试每轮读写 8 MiB，瓶颈主要在访存带宽而非指令集，");
+        LogLine(L"      这会进一步压缩原生与模拟之间的差距。");
+        LogLine(L"    · 因此在这个特定负载上，两者接近是正常的，不代表迁移没有意义。");
+        LogLine(L"      ARM64EC 的收益更多体现在启动时间、内存占用、功耗，以及");
+        LogLine(L"      调用密集 / 分支密集的代码上 —— 那些场景模拟开销才真正突出。");
+        LogLine(L"");
+        LogLine(L"    一句话：是否迁移、迁移哪部分，要以实测为准，");
+        LogLine(L"            不要想当然地假设「原生一定更快」。");
     }
     else
     {
         LogLine(L"  说明：当前运行在 x64 机器上，两条路径都是原生执行，性能应当接近。");
-        LogLine(L"        迁移到 ARM64EC 并在 ARM64 设备上运行后，第三方 SDK 会走模拟路径，");
-        LogLine(L"        而本程序的代码是 ARM64 原生执行，届时这里的差距会明显拉开。");
+        LogLine(L"        把本程序构建为 ARM64EC 并放到 ARM64 设备上运行，才能看到");
+        LogLine(L"        「原生 NEON」与「x64 模拟」的真实对比。");
     }
     LogLine(L"");
 

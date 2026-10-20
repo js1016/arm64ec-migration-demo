@@ -59,4 +59,34 @@ namespace SysInfo
 
     // 返回模块的完整文件路径。
     std::wstring GetModulePath(HMODULE module);
+
+    //-------------------------------------------------------------------------
+    // 函数级别的代码类型判定（ARM64EC 专有能力）
+    //
+    // ARM64EC 进程里，模块粒度的信息已经不够用了：同一个进程内既有 ARM64EC
+    // 原生代码，也有 x64 模拟代码，甚至同一个 DLL 里都可能两者并存（ARM64X）。
+    // Windows 11 的 ntdll 导出了 RtlIsEcCode，可以判断**任意一个代码地址**
+    // 属于哪一类。
+    //
+    // 本程序用它来直观展示：
+    //   * 自己的回调函数      -> ARM64EC 原生代码
+    //   * 第三方 DLL 的导出函数 -> x64 模拟代码
+    // 两者位于同一进程，由系统自动生成的 thunk 完成相互调用。
+    //-------------------------------------------------------------------------
+    // 注意：x64 版 Windows 的 ntdll 同样导出 RtlIsEcCode，只不过它对任何地址
+    // 都返回 FALSE（x64 机器上根本不存在 EC 代码）。因此 Unsupported 只会在
+    // 极老的系统上出现，真正区分两类代码的对比要在 ARM64 设备上才看得到。
+    enum class CodeKind
+    {
+        Unsupported,            // 系统未导出 RtlIsEcCode，无法判定
+        EmulationCompatible,    // ARM64EC 代码，由 CPU 直接执行
+        NotEmulationCompatible  // 非 EC 代码；在 ARM64 上即为需要模拟的 x64 代码
+    };
+
+    // 判定某个代码地址的类型。
+    CodeKind ClassifyCodeAddress(const void* address);
+
+    // 生成一行可读描述，形如：
+    //   "  本程序的进度回调            0x00007FF6... ARM64EC 原生代码"
+    std::wstring DescribeCodeAddress(const wchar_t* label, const void* address);
 }

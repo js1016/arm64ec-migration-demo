@@ -77,11 +77,17 @@
     </Link>
   </ItemDefinitionGroup>
 
+  <!--
+    与 DemoApp 保持一致，CRT 采用静态链接，使这个 x64 DLL 拷贝到任何机器上
+    都无需安装 x64 版 Visual C++ 运行库。
+    本 SDK 的接口刻意不跨 DLL 边界传递 CRT 对象（上下文在 DLL 内分配、
+    也在 DLL 内释放），因此静态 CRT 是安全的。
+  -->
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">
     <ClCompile>
       <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <Optimization>Disabled</Optimization>
-      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
   </ItemDefinitionGroup>
 
@@ -91,7 +97,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>

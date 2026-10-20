@@ -3,13 +3,21 @@
   ============================================================================
   DemoApp.vcxproj —— 宿主应用（传统 Win32 GUI）的构建工程。
 
-  【迁移阶段一：x64】
-  当前工程**只定义 x64 平台**，这是一个典型的、为 64 位 Windows 开发的应用。
-  后续迁移到 ARM64EC 时，本文件会是改动最集中的地方：
-    * 新增 ARM64EC 的 ProjectConfiguration；
-    * 第三方库目录中硬编码的 "x64" 需要保持不变（继续引用 x64 导入库）；
-    * MASM 汇编项需要按平台排除；
-    * 可能需要链接 softintrin.lib 以支持 x64 内在函数模拟。
+  【迁移阶段二：同时支持 x64 与 ARM64EC】
+  本文件是整个迁移中改动最集中的地方，共四类改动：
+
+    1. 新增 ARM64EC 的 ProjectConfiguration（见下方 ItemGroup）；
+
+    2. MASM 汇编项在 ARM64EC 下排除，改由 FastMathArm64.cpp 提供等价实现
+       —— ml64.exe 无法为 ARM64EC 生成目标文件，这是硬性阻断；
+
+    3. 第三方库目录中硬编码的 "x64" **刻意保持不变**。
+       ARM64EC 的全部意义就在于：继续链接厂商的 x64 导入库、
+       继续加载厂商的 x64 DLL，不需要等待第三方提供 ARM64 版本；
+
+    4. 输出目录按 $(Platform) 区分，生成后事件依旧从 bin\x64 复制
+       第三方 DLL，因此 ARM64EC 的输出目录里会得到一个 x64 的 FastImage.dll
+       —— 这正是预期行为。
   ============================================================================
 -->
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
@@ -22,6 +30,14 @@
     <ProjectConfiguration Include="Release|x64">
       <Configuration>Release</Configuration>
       <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|ARM64EC">
+      <Configuration>Debug</Configuration>
+      <Platform>ARM64EC</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|ARM64EC">
+      <Configuration>Release</Configuration>
+      <Platform>ARM64EC</Platform>
     </ProjectConfiguration>
   </ItemGroup>
 
@@ -62,7 +78,14 @@
     <GenerateManifest>true</GenerateManifest>
   </PropertyGroup>
 
-  <!-- 第三方 SDK 的位置（厂商只提供 x64 版本，因此路径里硬编码了 x64） -->
+  <!--
+    第三方 SDK 的位置。
+    这里的 "x64" 是**故意硬编码**的，并且在迁移到 ARM64EC 后依然保持不变：
+    厂商只提供 x64 版本，ARM64EC 的设计目标就是让我们能够直接链接这个
+    x64 导入库、直接加载这个 x64 DLL。
+    注意这里绝对不能写成 $(Platform)，否则 ARM64EC 构建会去找根本不存在的
+    lib\ARM64EC 目录。
+  -->
   <PropertyGroup>
     <FastImageRoot>$(SolutionDir)thirdparty\FastImage\</FastImageRoot>
     <FastImageIncludeDir>$(FastImageRoot)include</FastImageIncludeDir>
@@ -102,11 +125,30 @@
     </PostBuildEvent>
   </ItemDefinitionGroup>
 
+  <!--
+    ========================================================================
+    CRT 采用**静态链接**（/MTd、/MT），而不是默认的 DLL 方式（/MDd、/MD）。
+
+    原因：本示例需要把产物直接拷贝到一台干净的 ARM64 Windows 11 机器上运行。
+      * 动态 CRT 的调试版（VCRUNTIME140_1D.dll 等）**不可再分发**，
+        只有装了 Visual Studio 的机器才有，拷过去必然报
+        “找不到 VCRUNTIME140_1D.dll”；
+      * 即使是 Release，动态 CRT 也要求目标机同时安装两套运行库：
+        ARM64 版（给 ARM64EC 的 DemoApp.exe）和 x64 版（给第三方
+        FastImage.dll），对演示来说太麻烦。
+      静态链接后整个程序只依赖 KERNEL32.dll，拷过去即可运行。
+
+    注意：DemoApp 与 FastImage 两边都要静态链接，于是各自持有独立的 CRT 实例。
+      本示例的接口设计刻意避免了跨 DLL 边界传递 CRT 对象
+      （内存在哪边分配就在哪边释放，不跨边界传 FILE*、std:: 容器等），
+      因此是安全的。真实项目若做不到这一点，就应改用动态 CRT 并分发运行库。
+    ========================================================================
+  -->
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">
     <ClCompile>
       <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <Optimization>Disabled</Optimization>
-      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
   </ItemDefinitionGroup>
 
@@ -116,7 +158,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -130,6 +172,13 @@
     <ClCompile Include="src\NativeCompute.cpp" />
     <ClCompile Include="src\SysInfo.cpp" />
     <ClCompile Include="src\TextUtil.cpp" />
+    <!--
+      FastMath_SumU32 的 ARM64/ARM64EC 实现（NEON 内在函数）。
+      它与 x64 的 MASM 版本互斥：在 x64 平台上排除本文件。
+    -->
+    <ClCompile Include="src\FastMathArm64.cpp">
+      <ExcludedFromBuild Condition="'$(Platform)'=='x64'">true</ExcludedFromBuild>
+    </ClCompile>
   </ItemGroup>
 
   <ItemGroup>
@@ -141,12 +190,17 @@
   </ItemGroup>
 
   <!--
-    x64 手写汇编。
-    迁移提示：ARM64EC 平台不支持 ml64.exe，切换平台时必须把这一项排除掉，
-    并提供 C++ 或 ARM64 汇编的替代实现。
+    x64 手写汇编（MASM / ml64.exe）。
+
+    迁移阻断点：ml64.exe 只能产出 x64 目标文件，无法为 ARM64EC 汇编。
+    因此这里在 ARM64EC 平台上把它排除掉，等价实现由上面的
+    FastMathArm64.cpp（NEON 内在函数）提供。两者对外符号完全相同，
+    调用方代码一行都不用改。
   -->
   <ItemGroup>
-    <MASM Include="src\FastMath.asm" />
+    <MASM Include="src\FastMath.asm">
+      <ExcludedFromBuild Condition="'$(Platform)'=='ARM64EC'">true</ExcludedFromBuild>
+    </MASM>
   </ItemGroup>
 
   <ItemGroup>

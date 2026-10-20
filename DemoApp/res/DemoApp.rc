@@ -68,8 +68,8 @@ FONT 9, "Segoe UI", 400, 0, 0x86
 BEGIN
     ICON            IDI_DEMOAPP,IDC_STATIC,14,14,21,20
     LTEXT           "ARM64EC 迁移示例应用",IDC_STATIC,46,14,240,12
-    LTEXT           "版本 1.0.0 —— 第一阶段：x64 (AMD64) 原生构建",IDC_STATIC,46,30,240,10
-    LTEXT           "演示传统 x64 Win32 程序如何继续使用仅有 x64 版本的第三方 DLL。",
+    LTEXT           "版本 2.0.0 —— 第二阶段：可构建为 x64 或 ARM64EC",IDC_STATIC,46,30,240,10
+    LTEXT           "演示 ARM64EC 程序如何继续链接并调用仅有 x64 版本的第三方 DLL。",
                     IDC_STATIC,14,52,272,20
     LTEXT           "",IDC_ABOUT_TEXT,14,76,272,60
     DEFPUSHBUTTON   "确定",IDOK,234,142,52,16,WS_GROUP
@@ -90,8 +90,8 @@ END
 /////////////////////////////////////////////////////////////////////////////
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 1,0,0,0
- PRODUCTVERSION 1,0,0,0
+ FILEVERSION 2,0,0,0
+ PRODUCTVERSION 2,0,0,0
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -108,12 +108,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName",      "ARM64EC Migration Demo"
             VALUE "FileDescription",  "ARM64EC 迁移示例应用"
-            VALUE "FileVersion",      "1.0.0.0"
+            VALUE "FileVersion",      "2.0.0.0"
             VALUE "InternalName",     "DemoApp.exe"
             VALUE "LegalCopyright",   "示例代码，可自由使用"
             VALUE "OriginalFilename", "DemoApp.exe"
             VALUE "ProductName",      "ARM64EC 迁移示例"
-            VALUE "ProductVersion",   "1.0.0.0"
+            VALUE "ProductVersion",   "2.0.0.0"
         END
     END
     BLOCK "VarFileInfo"

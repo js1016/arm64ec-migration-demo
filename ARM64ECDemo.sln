@@ -1,5 +1,15 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
+#
+# 迁移要点：解决方案一共有 4 个配置（Debug/Release × x64/ARM64EC），
+# 但 FastImage（模拟第三方 SDK）项目本身只有 x64 配置。
+# 下面 ProjectConfigurationPlatforms 里把
+#     FastImage 的 "Debug|ARM64EC"  映射到它自己的 "Debug|x64"
+#     FastImage 的 "Release|ARM64EC" 映射到它自己的 "Release|x64"
+# 这样在构建 ARM64EC 解决方案配置时，第三方 DLL 依旧被构建为 x64，
+# 而 DemoApp 被构建为 ARM64EC —— 这正是真实项目中处理
+# “某个依赖永远保持 x64” 的标准做法。
+#
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
@@ -12,16 +22,26 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DemoApp", "DemoApp\DemoApp.
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|ARM64EC = Debug|ARM64EC
 		Debug|x64 = Debug|x64
+		Release|ARM64EC = Release|ARM64EC
 		Release|x64 = Release|x64
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{A1B2C3D4-0001-4E5F-9A0B-000000000001}.Debug|ARM64EC.ActiveCfg = Debug|x64
+		{A1B2C3D4-0001-4E5F-9A0B-000000000001}.Debug|ARM64EC.Build.0 = Debug|x64
 		{A1B2C3D4-0001-4E5F-9A0B-000000000001}.Debug|x64.ActiveCfg = Debug|x64
 		{A1B2C3D4-0001-4E5F-9A0B-000000000001}.Debug|x64.Build.0 = Debug|x64
+		{A1B2C3D4-0001-4E5F-9A0B-000000000001}.Release|ARM64EC.ActiveCfg = Release|x64
+		{A1B2C3D4-0001-4E5F-9A0B-000000000001}.Release|ARM64EC.Build.0 = Release|x64
 		{A1B2C3D4-0001-4E5F-9A0B-000000000001}.Release|x64.ActiveCfg = Release|x64
 		{A1B2C3D4-0001-4E5F-9A0B-000000000001}.Release|x64.Build.0 = Release|x64
+		{A1B2C3D4-0002-4E5F-9A0B-000000000002}.Debug|ARM64EC.ActiveCfg = Debug|ARM64EC
+		{A1B2C3D4-0002-4E5F-9A0B-000000000002}.Debug|ARM64EC.Build.0 = Debug|ARM64EC
 		{A1B2C3D4-0002-4E5F-9A0B-000000000002}.Debug|x64.ActiveCfg = Debug|x64
 		{A1B2C3D4-0002-4E5F-9A0B-000000000002}.Debug|x64.Build.0 = Debug|x64
+		{A1B2C3D4-0002-4E5F-9A0B-000000000002}.Release|ARM64EC.ActiveCfg = Release|ARM64EC
+		{A1B2C3D4-0002-4E5F-9A0B-000000000002}.Release|ARM64EC.Build.0 = Release|ARM64EC
 		{A1B2C3D4-0002-4E5F-9A0B-000000000002}.Release|x64.ActiveCfg = Release|x64
 		{A1B2C3D4-0002-4E5F-9A0B-000000000002}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection

@@ -186,6 +186,69 @@ bool IsHybridModule(HMODULE module)
     return chpeMetadata != 0;
 }
 
+CodeKind ClassifyCodeAddress(const void* address)
+{
+    //-------------------------------------------------------------------------
+    // RtlIsEcCode 只存在于 ARM64 版 Windows 11 的 ntdll 中，因此必须动态解析，
+    // 否则程序在 x64 Windows 上会因为找不到导入符号而无法启动。
+    //-------------------------------------------------------------------------
+    using PFN_RtlIsEcCode = BOOLEAN(WINAPI*)(ULONG64);
+
+    static const PFN_RtlIsEcCode isEcCode = []() -> PFN_RtlIsEcCode
+    {
+        HMODULE ntdll = GetModuleHandleW(L"ntdll.dll");
+        if (ntdll == nullptr)
+        {
+            return nullptr;
+        }
+        // 先转成 void* 再转函数指针，避免 C4191 警告
+        return reinterpret_cast<PFN_RtlIsEcCode>(
+            reinterpret_cast<void*>(GetProcAddress(ntdll, "RtlIsEcCode")));
+    }();
+
+    if (isEcCode == nullptr || address == nullptr)
+    {
+        return CodeKind::Unsupported;
+    }
+
+    return isEcCode(reinterpret_cast<ULONG64>(address)) != FALSE
+         ? CodeKind::EmulationCompatible
+         : CodeKind::NotEmulationCompatible;
+}
+
+std::wstring DescribeCodeAddress(const wchar_t* label, const void* address)
+{
+    const CodeKind kind = ClassifyCodeAddress(address);
+
+    // “非 EC 代码”意味着什么，取决于本机 CPU：
+    //   在 ARM64 上 —— 它是 x64 代码，必须由模拟器执行；
+    //   在 x64  上 —— 它就是普通的 x64 原生代码，没有任何模拟发生。
+    const bool nativeIsArm64 = IsNativeArm64();
+
+    const wchar_t* kindText = nullptr;
+    switch (kind)
+    {
+    case CodeKind::EmulationCompatible:
+        kindText = L"ARM64EC 代码（ARM64 指令，CPU 直接执行）";
+        break;
+    case CodeKind::NotEmulationCompatible:
+        kindText = nativeIsArm64 ? L"x64 代码（由模拟器执行）"
+                                 : L"x64 代码（本机原生执行）";
+        break;
+    default:
+        kindText = L"无法判定（系统未导出 ntdll!RtlIsEcCode）";
+        break;
+    }
+
+    wchar_t line[512] = {};
+    swprintf_s(line, L"  %s 0x%016llX  %s",
+               TextUtil::PadRight(label, 30).c_str(),
+               static_cast<unsigned long long>(reinterpret_cast<uintptr_t>(address)),
+               kindText);
+
+    return line;
+}
+
 std::wstring GetModulePath(HMODULE module)
 {
     std::vector<wchar_t> buffer(MAX_PATH);
