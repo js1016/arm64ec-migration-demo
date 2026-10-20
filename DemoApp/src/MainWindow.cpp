@@ -871,18 +871,19 @@ void MainWindow::ActionRunBenchmark()
     if (SysInfo::IsNativeArm64())
     {
         LogLine(L"  怎么解读这组数字：");
-        LogLine(L"    · 第三方 SDK 是未经重新编译的 x64 代码，走模拟执行；");
-        LogLine(L"      本程序的 SIMD 已经是 ARM64 原生指令。");
-        LogLine(L"    · 但「模拟」并不等于「慢」：Windows on ARM 的 x64 模拟器会把热点");
-        LogLine(L"      代码 JIT 成 ARM64 并缓存，稳态吞吐可以很接近原生。");
-        LogLine(L"    · 本测试每轮读写 8 MiB，瓶颈主要在访存带宽而非指令集，");
-        LogLine(L"      这会进一步压缩原生与模拟之间的差距。");
-        LogLine(L"    · 因此在这个特定负载上，两者接近是正常的，不代表迁移没有意义。");
-        LogLine(L"      ARM64EC 的收益更多体现在启动时间、内存占用、功耗，以及");
-        LogLine(L"      调用密集 / 分支密集的代码上 —— 那些场景模拟开销才真正突出。");
+        LogLine(L"    · 第三方 SDK 是未经重新编译的 x64 代码，由模拟器执行；");
+        LogLine(L"      本程序的 SIMD 已经是 ARM64 原生 NEON 指令。");
+        LogLine(L"    · 「模拟」并不等于「慢」。Windows on ARM 会把热点 x64 代码");
+        LogLine(L"      JIT 成 ARM64 并缓存，稳态吞吐相当可观 —— 本示例最早那版");
+        LogLine(L"      照搬 SSE2 结构写出来的 NEON 代码，实测反而跑不过模拟器。");
+        LogLine(L"    · 后来改用 ARM64 自己的 SQDMULH 重写（见 NativeCompute.cpp），");
+        LogLine(L"      每 16 像素的向量指令数减少约四成，才真正拉开差距。");
         LogLine(L"");
-        LogLine(L"    一句话：是否迁移、迁移哪部分，要以实测为准，");
-        LogLine(L"            不要想当然地假设「原生一定更快」。");
+        LogLine(L"    一句话：迁移到 ARM64EC 不会自动变快。");
+        LogLine(L"            收益来自「按目标 ISA 的特点重写」，而不是换个平台开关；");
+        LogLine(L"            照搬 x86 写法的移植，很可能还不如让模拟器去跑。");
+        LogLine(L"            此外 ARM64EC 在启动时间、内存占用、功耗上也有收益，");
+        LogLine(L"            这些不会体现在本测试里 —— 一切以实测为准。");
     }
     else
     {
